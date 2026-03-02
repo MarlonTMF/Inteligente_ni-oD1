@@ -1,0 +1,5 @@
+{
+  "name": "Coco: El Mapa de las Emociones",
+  "description": "Un juego interactivo inspirado en Mario Bros para explorar y regular emociones usando algoritmos de búsqueda e IA.",
+  "requestFramePermissions": ["microphone"]
+}
