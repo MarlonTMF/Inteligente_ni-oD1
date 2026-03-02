@@ -41,6 +41,8 @@ export default function App() {
   const [searchType, setSearchType] = useState<'BFS' | 'DFS' | 'UNIFORM'>('BFS');
   const [userInput, setUserInput] = useState('');
   const [isChatMinimized, setIsChatMinimized] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<'text' | 'voice'>('text');
+  const [isListening, setIsListening] = useState(false);
 
   // --- Initialization ---
   useEffect(() => {
@@ -54,7 +56,7 @@ export default function App() {
           const dist = Math.sqrt(q * q + r * r);
           if (dist > 2 && Math.random() > 0.6) terrain = TerrainType.FOREST;
           if (dist > 1 && Math.random() > 0.85) terrain = TerrainType.WALL;
-          
+
           newGrid.push({
             q, r,
             terrain,
@@ -88,7 +90,7 @@ export default function App() {
   const runSearch = async (type: 'BFS' | 'DFS' | 'UNIFORM', forcedTarget?: { q: number, r: number }) => {
     const target = forcedTarget || targetPos;
     if (!target || isSearching) return;
-    
+
     setIsSearching(true);
     setSearchType(type);
     setVisited(new Set());
@@ -97,11 +99,11 @@ export default function App() {
 
     const startKey = `0,0`;
     const targetKey = `${target.q},${target.r}`;
-    
+
     // For Uniform Cost (Dijkstra)
     const costs: Record<string, number> = { [startKey]: 0 };
     const parent: Record<string, string | null> = { [startKey]: null };
-    
+
     // Frontier management
     let currentFrontier: { q: number, r: number, priority: number }[] = [{ q: 0, r: 0, priority: 0 }];
     const visitedSet = new Set<string>();
@@ -117,7 +119,7 @@ export default function App() {
       if (type === 'BFS') currentIdx = 0;
       else if (type === 'DFS') currentIdx = currentFrontier.length - 1;
       else if (type === 'UNIFORM') {
-        currentIdx = currentFrontier.reduce((minIdx, cell, idx, arr) => 
+        currentIdx = currentFrontier.reduce((minIdx, cell, idx, arr) =>
           cell.priority < arr[minIdx].priority ? idx : minIdx, 0);
       }
 
@@ -144,12 +146,12 @@ export default function App() {
         }
         setPath(resultPath);
         setIsSearching(false);
-        
+
         const msg = type === 'BFS' ? "He buscado por todos los caminos cercanos al mismo tiempo, ¡así no nos saltaremos ninguna flor de alegría!" :
-                    type === 'DFS' ? "He ido muy al fondo de este pensamiento para ver a dónde nos lleva, ¡sujétate fuerte!" :
-                    "He buscado el camino que requiere menos esfuerzo emocional, ¡esquivando los bosques pesados!";
+          type === 'DFS' ? "He ido muy al fondo de este pensamiento para ver a dónde nos lleva, ¡sujétate fuerte!" :
+            "He buscado el camino que requiere menos esfuerzo emocional, ¡esquivando los bosques pesados!";
         setCocoMessage(msg);
-        
+
         // Animate player along path
         animatePlayer(resultPath);
         return;
@@ -159,7 +161,7 @@ export default function App() {
       for (const n of neighbors) {
         const nKey = `${n.q},${n.r}`;
         const cell = grid.find(c => c.q === n.q && c.r === n.r);
-        
+
         if (cell && cell.terrain !== TerrainType.WALL && !visitedSet.has(nKey)) {
           const newCost = (costs[key] || 0) + cell.cost;
           if (!(nKey in costs) || newCost < costs[nKey]) {
@@ -194,11 +196,11 @@ export default function App() {
     // 1. Close dialog immediately and update target
     setShowInitialDialog(false);
     setTargetPos(resp.targetHex);
-    
+
     // 2. Update message
     const msg = `¡Vamos a la zona de ${resp.emotion}!`;
     setCocoMessage(msg);
-    
+
     // 3. Start search passing the target directly to avoid state race
     runSearch('BFS', resp.targetHex);
 
@@ -228,7 +230,7 @@ export default function App() {
 
   const handleUserText = async (text: string) => {
     if (!text.trim()) return;
-    
+
     // If the initial dialog is open, close it and start search
     if (showInitialDialog) {
       setShowInitialDialog(false);
@@ -240,7 +242,7 @@ export default function App() {
     }
 
     const lowerText = text.toLowerCase();
-    
+
     // Check for unblocking keywords
     if (lowerText.includes("todo va a estar bien") || lowerText.includes("puedo") || lowerText.includes("valiente")) {
       unblockWall();
@@ -259,9 +261,47 @@ export default function App() {
       const fallbackMsg = `Me has dicho: "${text}". ¡Qué interesante! Sigamos explorando este mapa de sentimientos.`;
       setCocoMessage(fallbackMsg);
     }
-    
+
     setUserInput('');
     setIsChatMinimized(true);
+  };
+
+  const handleVoiceTrigger = async () => {
+    if (isListening) return;
+
+    setIsListening(true);
+    setCocoMessage("Te escucho... puedes hablar ahora.");
+
+    try {
+      const response = await fetch('http://localhost:5000/listen');
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        setCocoMessage(`Te escuché decir: "${data.text}"`);
+        // Process the text like a normal chat input
+        setTimeout(() => handleUserText(data.text), 1500);
+      } else {
+        setCocoMessage(data.message || "No pude entenderte, ¿intentamos de nuevo?");
+      }
+    } catch (error) {
+      console.error("Error calling voice service:", error);
+      setCocoMessage("El servicio de voz no está respondiendo. Asegúrate de que el servidor Python esté corriendo.");
+    } finally {
+      setIsListening(false);
+    }
+  };
+
+  const toggleInteractionMode = () => {
+    console.log("Toggling interaction mode");
+    setInteractionMode(prev => prev === 'text' ? 'voice' : 'text');
+  };
+
+  const onMicClick = () => {
+    console.log("Mic clicked");
+    if (interactionMode !== 'voice') {
+      setInteractionMode('voice');
+    }
+    handleVoiceTrigger();
   };
 
   // --- Render ---
@@ -281,8 +321,8 @@ export default function App() {
             const isTarget = targetPos?.q === cell.q && targetPos?.r === cell.r;
 
             return (
-              <Group 
-                key={`${cell.q},${cell.r}`} 
+              <Group
+                key={`${cell.q},${cell.r}`}
                 x={x} y={y}
                 onClick={() => handleCellClick(cell.q, cell.r)}
                 onTap={() => handleCellClick(cell.q, cell.r)}
@@ -297,32 +337,32 @@ export default function App() {
                   shadowBlur={isTarget ? 20 : 0}
                   shadowColor="#F59E0B"
                 />
-                
+
                 {/* Search Visuals (Huellas de Luz) */}
                 {isVisited && !isInPath && (
-                  <Circle 
-                    radius={6} 
-                    fill="#FFF" 
-                    opacity={0.4} 
-                    shadowBlur={10} 
+                  <Circle
+                    radius={6}
+                    fill="#FFF"
+                    opacity={0.4}
+                    shadowBlur={10}
                     shadowColor="#FFF"
                   />
                 )}
                 {isFrontier && isTechnicalMode && (
-                  <RegularPolygon 
-                    sides={6} 
-                    radius={HEX_SIZE - 5} 
-                    stroke="#3B82F6" 
-                    strokeWidth={2} 
-                    dash={[5, 2]} 
+                  <RegularPolygon
+                    sides={6}
+                    radius={HEX_SIZE - 5}
+                    stroke="#3B82F6"
+                    strokeWidth={2}
+                    dash={[5, 2]}
                   />
                 )}
                 {isInPath && (
-                  <Circle 
-                    radius={10} 
-                    fill="#FCD34D" 
-                    shadowBlur={15} 
-                    shadowColor="#FCD34D" 
+                  <Circle
+                    radius={10}
+                    fill="#FCD34D"
+                    shadowBlur={15}
+                    shadowColor="#FCD34D"
                   />
                 )}
 
@@ -386,7 +426,7 @@ export default function App() {
 
       {/* Top Right: Algorithm Selection */}
       <div className="absolute top-6 right-6 flex flex-col gap-3 pointer-events-auto">
-        <button 
+        <button
           onClick={() => setIsTechnicalMode(!isTechnicalMode)}
           className={`flex items-center gap-2 px-5 py-3 rounded-2xl border-2 border-slate-900 font-black transition-all shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] active:shadow-none active:translate-x-1 active:translate-y-1 ${isTechnicalMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}`}
         >
@@ -409,7 +449,7 @@ export default function App() {
           </div>
         )}
 
-        <button 
+        <button
           onClick={unblockWall}
           className="flex items-center gap-2 px-5 py-3 bg-yellow-400 text-slate-900 rounded-2xl border-2 border-slate-900 font-black transition-all shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] active:shadow-none active:translate-x-1 active:translate-y-1"
         >
@@ -420,13 +460,13 @@ export default function App() {
 
       {/* Bottom: Coco Dialogue & Text Input */}
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-4xl px-6 pointer-events-none">
-        <motion.div 
+        <motion.div
           layout
           animate={{ height: isChatMinimized ? 'auto' : 'auto' }}
-          className="bg-white/95 backdrop-blur-lg p-6 rounded-[3rem] shadow-2xl border-4 border-slate-900 pointer-events-auto flex flex-col gap-4 relative"
+          className="bg-white/95 backdrop-blur-lg p-6 rounded-[3rem] shadow-2xl border-4 border-slate-900 pointer-events-auto flex flex-col gap-4 relative z-[1000]"
         >
           {/* Toggle Button */}
-          <button 
+          <button
             onClick={() => setIsChatMinimized(!isChatMinimized)}
             className="absolute -top-6 left-1/2 -translate-x-1/2 p-3 bg-white border-4 border-slate-900 rounded-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-110 transition-transform z-10"
           >
@@ -445,33 +485,48 @@ export default function App() {
               <h2 className="font-black text-[10px] text-emerald-600 uppercase tracking-[0.3em] mb-1">Coco dice:</h2>
               <p className={`${isChatMinimized ? 'text-lg' : 'text-2xl'} font-bold text-slate-800 leading-tight italic line-clamp-2`}>"{cocoMessage}"</p>
             </div>
+
+            {/* Always Visible Voice/Text Toggle */}
+            <div className="flex flex-col gap-2 shrink-0">
+              <button
+                onClick={toggleInteractionMode}
+                className={`px-3 py-1.5 rounded-xl border-2 border-slate-900 text-[9px] font-black uppercase tracking-tighter transition-all hover:scale-105 active:scale-95 z-[1001] pointer-events-auto ${interactionMode === 'voice' ? 'bg-emerald-400' : 'bg-slate-100'}`}
+              >
+                {interactionMode === 'voice' ? 'MODO VOZ' : 'MODO TEXTO'}
+              </button>
+              <button
+                onClick={onMicClick}
+                disabled={isListening}
+                className={`p-3 rounded-2xl border-4 border-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] transition-all hover:scale-110 active:scale-90 z-[1001] pointer-events-auto ${isListening ? 'bg-red-400 animate-pulse' : 'bg-slate-100 hover:bg-slate-200'}`}
+              >
+                <Mic size={18} className={isListening ? 'text-white' : 'text-slate-400'} />
+              </button>
+            </div>
           </div>
 
           {!isChatMinimized && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex gap-4 items-center"
             >
               <div className="relative flex-1">
-                <input 
+                <input
                   type="text"
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleUserText(userInput)}
-                  placeholder="Escribe aquí tu mensaje para Coco..."
+                  placeholder={interactionMode === 'voice' ? "Presiona el micro para hablar..." : "Escribe aquí tu mensaje para Coco..."}
                   className="w-full p-4 bg-slate-50 border-4 border-slate-900 rounded-2xl text-lg font-bold focus:outline-none focus:ring-4 ring-emerald-400/30 transition-all"
+                  disabled={interactionMode === 'voice'}
                 />
-                <button 
+                <button
                   onClick={() => handleUserText(userInput)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-slate-900 text-white rounded-xl hover:scale-110 transition-transform"
                 >
                   <ChevronRight size={20} />
                 </button>
               </div>
-              <button className="p-4 bg-slate-100 rounded-2xl border-4 border-slate-900 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:bg-slate-200 transition-colors">
-                <Mic size={20} className="text-slate-400" />
-              </button>
             </motion.div>
           )}
         </motion.div>
@@ -479,7 +534,7 @@ export default function App() {
 
       {/* Initial Selection Dialog - Simplified for reliability */}
       {showInitialDialog && (
-        <div 
+        <div
           style={{ zIndex: 9999 }}
           className="fixed inset-0 flex items-center justify-center bg-emerald-900/80 backdrop-blur-xl p-6"
         >
@@ -491,7 +546,7 @@ export default function App() {
                 </div>
                 <h3 className="text-3xl font-black uppercase tracking-tight">¿Cómo te sientes?</h3>
               </div>
-              
+
               <div className="grid grid-cols-1 gap-4">
                 {PREDEFINED_RESPONSES.map((resp) => (
                   <button
@@ -505,13 +560,13 @@ export default function App() {
                 ))}
               </div>
             </div>
-            
+
             <div className="bg-slate-50 p-6 border-t-8 border-slate-900 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Info size={18} className="text-slate-400" />
                 <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Elige una emoción</span>
               </div>
-              <button 
+              <button
                 onClick={() => setShowInitialDialog(false)}
                 className="px-6 py-2 bg-yellow-400 hover:bg-yellow-500 rounded-xl text-xs font-black border-2 border-slate-900 transition-colors shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1"
               >

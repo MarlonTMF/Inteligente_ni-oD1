@@ -27,8 +27,8 @@ export interface PredefinedResponse {
 }
 
 export const PREDEFINED_RESPONSES: PredefinedResponse[] = [
-  { id: "1", text: "Me siento solo", emotion: "sadness", targetHex: { q: 3, r: -3 } },
-  { id: "2", text: "¡Estoy muy emocionado!", emotion: "joy", targetHex: { q: 0, r: 3 } },
-  { id: "3", text: "Tengo un poco de miedo", emotion: "fear", targetHex: { q: -3, r: 3 } },
-  { id: "4", text: "Estoy tranquilo", emotion: "calm", targetHex: { q: 3, r: 0 } },
+  { id: "1", text: "Me siento solo", emotion: "tristeza", targetHex: { q: 3, r: -3 } },
+  { id: "2", text: "¡Estoy muy emocionado!", emotion: "alegria", targetHex: { q: 0, r: 3 } },
+  { id: "3", text: "Tengo un poco de miedo", emotion: "miedo", targetHex: { q: -3, r: 3 } },
+  { id: "4", text: "Estoy tranquilo", emotion: "calma", targetHex: { q: 3, r: 0 } },
 ];
