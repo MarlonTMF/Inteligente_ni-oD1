@@ -25,6 +25,42 @@ const getNeighbors = (q: number, r: number) => {
   return directions.map(d => ({ q: q + d.q, r: r + d.r }));
 };
 
+const GUARDIANS = {
+  BFS: {
+    id: 'BFS',
+    name: 'Brisa Burbujas',
+    role: 'Guardiana de la Conexión',
+    emoji: '🫧',
+    color: '#60A5FA',
+    lore: 'Nació del primer "te quiero". Su luz se expande como una red para recordarnos que no estamos solos.',
+    technique: 'La Red de los 5 Nudos (Grounding)',
+    instruction: 'Mira a tu alrededor. Nombra 5 cosas que ves y 4 que puedes tocar...',
+    strategy: 'Explora todo a la vez para no dejar a nadie atrás.'
+  },
+  DFS: {
+    id: 'DFS',
+    name: 'Rayo Valiente',
+    role: 'Guardián de la Verdad',
+    emoji: '⚡',
+    color: '#FBBF24',
+    lore: 'Vive en la Cueva de los Susurros. Enseña que los miedos son solo sombras que se disuelven con luz.',
+    technique: 'La Linterna del Observador (Defusión)',
+    instruction: 'Di conmigo: "Estoy teniendo el pensamiento de que tengo miedo". No eres tu miedo.',
+    strategy: 'Va directo al fondo para iluminar lo más profundo.'
+  },
+  UNIFORM: {
+    id: 'UNIFORM',
+    name: 'Abuelo Musguito',
+    role: 'Guardián de la Autocompasión',
+    emoji: '🐢',
+    color: '#34D399',
+    lore: 'Una tortuga de cristal que sabe que el corazón es un jardín. El camino más amable es el mejor.',
+    technique: 'El Termómetro de la Batería (Autocuidado)',
+    instruction: 'Pregunta a tu corazón: "¿Este camino me da paz o me agota?". Elige la calma.',
+    strategy: 'Busca el camino con menos esfuerzo para cuidar tu energía.'
+  }
+};
+
 export default function App() {
   // --- State ---
   const [grid, setGrid] = useState<HexCell[]>([]);
@@ -43,6 +79,12 @@ export default function App() {
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [interactionMode, setInteractionMode] = useState<'text' | 'voice'>('text');
   const [isListening, setIsListening] = useState(false);
+  const [isBlockedByChallenge, setIsBlockedByChallenge] = useState(false);
+  const [challengePhrase, setChallengePhrase] = useState('');
+  const [remainingPath, setRemainingPath] = useState<{ q: number, r: number }[]>([]);
+  const [isAtCheckpoint, setIsAtCheckpoint] = useState(false);
+  const [activeGuardian, setActiveGuardian] = useState<any>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // --- Initialization ---
   useEffect(() => {
@@ -146,14 +188,7 @@ export default function App() {
         }
         setPath(resultPath);
         setIsSearching(false);
-
-        const msg = type === 'BFS' ? "He buscado por todos los caminos cercanos al mismo tiempo, ¡así no nos saltaremos ninguna flor de alegría!" :
-          type === 'DFS' ? "He ido muy al fondo de este pensamiento para ver a dónde nos lleva, ¡sujétate fuerte!" :
-            "He buscado el camino que requiere menos esfuerzo emocional, ¡esquivando los bosques pesados!";
-        setCocoMessage(msg);
-
-        // Animate player along path
-        animatePlayer(resultPath);
+        // We STAY here until user picks a Guardian
         return;
       }
 
@@ -178,18 +213,61 @@ export default function App() {
     step();
   };
 
-  const animatePlayer = async (pathNodes: { q: number, r: number }[]) => {
-    for (const node of pathNodes) {
-      setPlayerPos(node);
-      await new Promise(r => setTimeout(r, 300));
+  const animatePlayer = async (pathNodes: { q: number, r: number }[], guardianId?: string) => {
+    const guardian = guardianId ? (GUARDIANS as any)[guardianId] : activeGuardian;
+    if (guardian) setActiveGuardian(guardian);
+    setIsNavigating(true);
+
+    if (guardianId) {
+      setCocoMessage(`¡${guardian.name} ha llegado para guiarnos! Su técnica es: "${guardian.technique}". ¡Comenzamos!`);
     }
-    confetti({
-      particleCount: 150,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-    const finalMsg = "¡Lo logramos! Hemos encontrado el camino hacia la calma. Respira profundo conmigo.";
-    setCocoMessage(finalMsg);
+
+    // Segment size (3 steps)
+    const segmentSize = 3;
+    const currentSegment = pathNodes.slice(0, segmentSize);
+    const rest = pathNodes.slice(segmentSize);
+
+    for (let i = 0; i < currentSegment.length; i++) {
+      const node = currentSegment[i];
+      setPlayerPos(node);
+      await new Promise(r => setTimeout(r, 1000)); // Slower pedagogical movement
+    }
+
+    setRemainingPath(rest);
+
+    if (rest.length > 0) {
+      // Checkpoint reached
+      setIsAtCheckpoint(true);
+      const checkpointMessages = [
+        `¡Buen avance! ${guardian.name} quiere saber: ¿Cómo se siente tu cuerpo ahora que nos movemos?`,
+        `${guardian.emoji} ${guardian.name} dice: Respiramos tres veces... ¡Hablemos para seguir el camino!`,
+        `¡Mira qué lejos llegamos! ${guardian.name} pregunta: ¿Qué color tiene esta emoción para ti?`
+      ];
+      const randomMsg = checkpointMessages[Math.floor(Math.random() * checkpointMessages.length)];
+      setCocoMessage(randomMsg);
+      setIsChatMinimized(false);
+    } else {
+      // End of path or near final blockage
+      setIsNavigating(false);
+      if (!isBlockedByChallenge) {
+        triggerEndBlockage();
+      }
+    }
+  };
+
+  const triggerEndBlockage = () => {
+    const phrases = [
+      "Soy valiente y puedo con esto",
+      "Respiro calma y suelto el miedo",
+      "Mi corazón es fuerte y está tranquilo",
+      "Todo va a estar bien, yo puedo"
+    ];
+    const selected = phrases[Math.floor(Math.random() * phrases.length)];
+
+    setChallengePhrase(selected);
+    setIsBlockedByChallenge(true);
+    setCocoMessage(`¡Espera! Veo un pequeño nudo emocional. Para cruzar este puente, repite conmigo: "${selected}"`);
+    setIsChatMinimized(false);
   };
 
   const handlePredefinedSelection = (resp: PredefinedResponse) => {
@@ -218,6 +296,8 @@ export default function App() {
   };
 
   const unblockWall = () => {
+    setTargetPos(null);
+    setIsNavigating(false);
     // CU-03: Superando un bloqueo
     const walls = grid.filter(c => c.terrain === TerrainType.WALL);
     if (walls.length > 0) {
@@ -242,6 +322,41 @@ export default function App() {
     }
 
     const lowerText = text.toLowerCase();
+
+    // Check for checkpoint resolution
+    if (isAtCheckpoint) {
+      setIsAtCheckpoint(false);
+      setCocoMessage(`¡Excelente reflexión! ${activeGuardian.name} se siente feliz. ¡Seguimos!`);
+      if (remainingPath.length > 0) {
+        animatePlayer(remainingPath);
+      }
+      setUserInput('');
+      return;
+    }
+
+    // Check for challenge resolution
+    if (isBlockedByChallenge) {
+      const isCorrect = lowerText.includes(challengePhrase.toLowerCase().split(' ').pop() || "") ||
+        lowerText.length > challengePhrase.length * 0.7; // Loose match for kids
+
+      if (isCorrect) {
+        setIsBlockedByChallenge(false);
+        setCocoMessage("¡Eso es! Tu valentía ha disuelto el nudo. ¡Llegamos!");
+        setUserInput('');
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+        const finalMsg = "¡Lo logramos! Hemos encontrado el camino hacia la calma. Respira profundo conmigo.";
+        setCocoMessage(finalMsg);
+        return;
+      } else {
+        setCocoMessage(`¡Casi lo tienes! Intenta decir la frase de poder: "${challengePhrase}"`);
+        setUserInput('');
+        return;
+      }
+    }
 
     // Check for unblocking keywords
     if (lowerText.includes("todo va a estar bien") || lowerText.includes("puedo") || lowerText.includes("valiente")) {
@@ -434,18 +549,30 @@ export default function App() {
           {isTechnicalMode ? 'MODO FANTASÍA' : 'MODO TÉCNICO'}
         </button>
 
-        {targetPos && !isSearching && (
-          <div className="bg-white p-4 rounded-3xl border-2 border-slate-900 shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] flex flex-col gap-2">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Selecciona Algoritmo</p>
-            <button onClick={() => runSearch('BFS')} className="flex items-center justify-between w-full px-4 py-2 bg-blue-50 hover:bg-blue-100 rounded-xl border-2 border-blue-200 text-blue-700 font-bold text-sm transition-colors">
-              BFS (Onda) <Play size={14} />
-            </button>
-            <button onClick={() => runSearch('DFS')} className="flex items-center justify-between w-full px-4 py-2 bg-purple-50 hover:bg-purple-100 rounded-xl border-2 border-purple-200 text-purple-700 font-bold text-sm transition-colors">
-              DFS (Profundo) <Play size={14} />
-            </button>
-            <button onClick={() => runSearch('UNIFORM')} className="flex items-center justify-between w-full px-4 py-2 bg-emerald-50 hover:bg-emerald-100 rounded-xl border-2 border-emerald-200 text-emerald-700 font-bold text-sm transition-colors">
-              Uniforme (Costo) <Play size={14} />
-            </button>
+        {targetPos && !isSearching && !isNavigating && (
+          <div className="bg-white p-6 rounded-[2rem] border-4 border-slate-900 shadow-[8px_8px_0px_0px_rgba(15,23,42,1)] flex flex-col gap-4 max-w-sm pointer-events-auto">
+            <h3 className="font-black text-xs uppercase tracking-widest text-slate-400">Elige un Guardián</h3>
+            <div className="flex flex-col gap-3">
+              {Object.values(GUARDIANS).map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => animatePlayer(path, g.id)}
+                  className="group flex items-start gap-4 p-4 rounded-2xl border-2 border-slate-200 hover:border-slate-900 hover:bg-slate-50 transition-all text-left"
+                >
+                  <div
+                    className="w-12 h-12 shrink-0 rounded-xl border-2 border-slate-900 flex items-center justify-center text-2xl shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] group-hover:translate-x-[-2px] group-hover:translate-y-[-2px] group-hover:shadow-[6px_6px_0px_0px_rgba(15,23,42,1)] transition-all"
+                    style={{ backgroundColor: g.color }}
+                  >
+                    {g.emoji}
+                  </div>
+                  <div>
+                    <p className="font-black text-sm uppercase tracking-tight">{g.name}</p>
+                    <p className="text-[10px] font-bold text-slate-400 mb-1">{g.role}</p>
+                    <p className="text-[10px] leading-tight text-slate-600 italic">"{g.strategy}"</p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -462,7 +589,7 @@ export default function App() {
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 w-full max-w-4xl px-6 pointer-events-none">
         <motion.div
           layout
-          animate={{ height: isChatMinimized ? 'auto' : 'auto' }}
+          initial={false}
           className="bg-white/95 backdrop-blur-lg p-6 rounded-[3rem] shadow-2xl border-4 border-slate-900 pointer-events-auto flex flex-col gap-4 relative z-[1000]"
         >
           {/* Toggle Button */}
@@ -481,9 +608,22 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex-1">
+            <div className="flex-1 overflow-hidden">
               <h2 className="font-black text-[10px] text-emerald-600 uppercase tracking-[0.3em] mb-1">Coco dice:</h2>
-              <p className={`${isChatMinimized ? 'text-lg' : 'text-2xl'} font-bold text-slate-800 leading-tight italic line-clamp-2`}>"{cocoMessage}"</p>
+              <div className="max-h-[200px] overflow-y-auto scrollbar-hide">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={cocoMessage}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.4 }}
+                    className={`${isChatMinimized ? 'text-lg line-clamp-1' : 'text-2xl'} font-bold text-slate-800 leading-tight italic`}
+                  >
+                    "{cocoMessage}"
+                  </motion.p>
+                </AnimatePresence>
+              </div>
             </div>
 
             {/* Always Visible Voice/Text Toggle */}
