@@ -58,6 +58,17 @@ const GUARDIANS = {
     technique: 'El Termómetro de la Batería (Autocuidado)',
     instruction: 'Pregunta a tu corazón: "¿Este camino me da paz o me agota?". Elige la calma.',
     strategy: 'Busca el camino con menos esfuerzo para cuidar tu energía.'
+  },
+  ASTAR: {
+    id: 'ASTAR',
+    name: 'Maestro Sabi',
+    role: 'Guardián de la Claridad',
+    emoji: '🦉',
+    color: '#A78BFA',
+    lore: 'El búho más anciano, protector de la Biblioteca de los Sentidos. Su vista ve el destino final desde el primer paso.',
+    technique: 'El Mapa de la Claridad (Organización)',
+    instruction: 'Mira el camino completo. ¿Qué pequeño paso te acerca más a tu meta de hoy?',
+    strategy: 'Usa la sabiduría y la intuición para encontrar el camino más sabio.'
   }
 };
 
@@ -74,7 +85,7 @@ export default function App() {
   const [cocoMessage, setCocoMessage] = useState('¡Hola! Soy Coco, tu guía emocional. ¿Cómo te sientes hoy?');
   const [showInitialDialog, setShowInitialDialog] = useState(true);
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const [searchType, setSearchType] = useState<'BFS' | 'DFS' | 'UNIFORM'>('BFS');
+  const [searchType, setSearchType] = useState<'BFS' | 'DFS' | 'UNIFORM' | 'ASTAR'>('BFS');
   const [userInput, setUserInput] = useState('');
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [interactionMode, setInteractionMode] = useState<'text' | 'voice'>('text');
@@ -129,7 +140,7 @@ export default function App() {
   }, []);
 
   // --- Search Algorithms ---
-  const runSearch = async (type: 'BFS' | 'DFS' | 'UNIFORM', forcedTarget?: { q: number, r: number }) => {
+  const runSearch = async (type: 'BFS' | 'DFS' | 'UNIFORM' | 'ASTAR', forcedTarget?: { q: number, r: number }) => {
     const target = forcedTarget || targetPos;
     if (!target || isSearching) return;
 
@@ -142,9 +153,14 @@ export default function App() {
     const startKey = `0,0`;
     const targetKey = `${target.q},${target.r}`;
 
-    // For Uniform Cost (Dijkstra)
+    // For Uniform Cost (Dijkstra) and A*
     const costs: Record<string, number> = { [startKey]: 0 };
     const parent: Record<string, string | null> = { [startKey]: null };
+
+    // Heuristic for A* (Hex Manhattan)
+    const heuristic = (q1: number, r1: number, q2: number, r2: number) => {
+      return (Math.abs(q1 - q2) + Math.abs(q1 + r1 - q2 - r2) + Math.abs(r1 - r2)) / 2;
+    };
 
     // Frontier management
     let currentFrontier: { q: number, r: number, priority: number }[] = [{ q: 0, r: 0, priority: 0 }];
@@ -156,11 +172,11 @@ export default function App() {
         return;
       }
 
-      // Sort for Uniform Cost or pick based on BFS/DFS
+      // Sort for Uniform Cost or pick based on BFS/DFS/A*
       let currentIdx = 0;
       if (type === 'BFS') currentIdx = 0;
       else if (type === 'DFS') currentIdx = currentFrontier.length - 1;
-      else if (type === 'UNIFORM') {
+      else if (type === 'UNIFORM' || type === 'ASTAR') {
         currentIdx = currentFrontier.reduce((minIdx, cell, idx, arr) =>
           cell.priority < arr[minIdx].priority ? idx : minIdx, 0);
       }
@@ -202,7 +218,10 @@ export default function App() {
           if (!(nKey in costs) || newCost < costs[nKey]) {
             costs[nKey] = newCost;
             parent[nKey] = key;
-            currentFrontier.push({ ...n, priority: type === 'UNIFORM' ? newCost : 0 });
+            let priority = 0;
+            if (type === 'UNIFORM') priority = newCost;
+            if (type === 'ASTAR') priority = newCost + heuristic(n.q, n.r, target.q, target.r);
+            currentFrontier.push({ ...n, priority });
           }
         }
       }
