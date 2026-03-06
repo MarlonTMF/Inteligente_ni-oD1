@@ -6,6 +6,10 @@ import { Terminal, Map as MapIcon, Play, RefreshCcw, MessageSquare, Mic, Info, C
 import { getCocoResponse } from './services/geminiService';
 import confetti from 'canvas-confetti';
 
+import { startListening, speak } from "./services/voiceService";
+import { detectEmotion } from "./services/geminiService";
+
+
 // --- Hex Math Helpers ---
 const HEX_SIZE = 40;
 const HEX_WIDTH = Math.sqrt(3) * HEX_SIZE;
@@ -400,29 +404,52 @@ export default function App() {
     setIsChatMinimized(true);
   };
 
-  const handleVoiceTrigger = async () => {
+  const handleVoiceTrigger = () => {
+
     if (isListening) return;
 
     setIsListening(true);
     setCocoMessage("Te escucho... puedes hablar ahora.");
 
-    try {
-      const response = await fetch('http://localhost:5000/listen');
-      const data = await response.json();
+    startListening(async (text: string) => {
 
-      if (data.status === 'success') {
-        setCocoMessage(`Te escuché decir: "${data.text}"`);
-        // Process the text like a normal chat input
-        setTimeout(() => handleUserText(data.text), 1500);
-      } else {
-        setCocoMessage(data.message || "No pude entenderte, ¿intentamos de nuevo?");
+    console.log("Usuario dijo:", text);
+
+    setCocoMessage(`Te escuché decir: "${text}"`);
+
+    let emotion = "neutral";
+
+    try {
+
+      const emotionData = await detectEmotion(text);
+
+      console.log("Emotion detectada:", emotionData);
+
+      if (emotionData && emotionData.emotion) {
+        emotion = emotionData.emotion;
       }
-    } catch (error) {
-      console.error("Error calling voice service:", error);
-      setCocoMessage("El servicio de voz no está respondiendo. Asegúrate de que el servidor Python esté corriendo.");
-    } finally {
-      setIsListening(false);
+
+    } catch (e) {
+
+      console.log("No se pudo detectar emoción, usando neutral");
+
     }
+
+    const cocoResponse = await getCocoResponse(
+      "Mapa de las Emociones",
+      emotion,
+      text
+    );
+
+    setCocoMessage(cocoResponse);
+
+    speak(cocoResponse);
+
+    handleUserText(text);
+
+    setIsListening(false);
+
+    });
   };
 
   const toggleInteractionMode = () => {
@@ -440,6 +467,8 @@ export default function App() {
 
   // --- Render ---
   const center = { x: dimensions.width / 2, y: dimensions.height / 2 };
+
+  
 
   return (
     <div className="relative w-full h-screen bg-[#F0FDFA] overflow-hidden font-sans text-slate-900">
@@ -747,4 +776,8 @@ export default function App() {
       </div>
     </div>
   );
+
+
+  
+
 }
