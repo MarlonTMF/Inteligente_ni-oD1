@@ -1,7 +1,7 @@
 import speech_recognition as sr
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-import sys
+from algorithms import bfs, dfs, uniform_cost_search, a_star
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
@@ -24,7 +24,6 @@ def listen():
             
             print("Transcribing...")
             # Use Google Speech Recognition (free tier)
-            # language='es-ES' for Spanish
             text = recognizer.recognize_google(audio, language='es-ES')
             
             print(f"Recognized: {text}")
@@ -54,11 +53,44 @@ def listen():
             "message": str(e)
         }), 500
 
+@app.route('/find-path', methods=['POST'])
+def find_path():
+    """
+    Executes a search algorithm and returns the path and explored nodes.
+    """
+    try:
+        data = request.json
+        search_type = data.get('type')
+        start = data.get('start')
+        target = data.get('target')
+        grid_costs = data.get('gridCosts')
+
+        if not all([search_type, start, target, grid_costs]):
+            return jsonify({"status": "error", "message": "Missing required parameters"}), 400
+
+        if search_type == 'BFS':
+            path, explored = bfs(start, target, grid_costs)
+        elif search_type == 'DFS':
+            path, explored = dfs(start, target, grid_costs)
+        elif search_type == 'UNIFORM':
+            path, explored = uniform_cost_search(start, target, grid_costs)
+        elif search_type == 'ASTAR':
+            path, explored = a_star(start, target, grid_costs)
+        else:
+            return jsonify({"status": "error", "message": f"Invalid search type: {search_type}"}), 400
+
+        return jsonify({
+            "status": "success",
+            "path": path,
+            "explored": explored
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/status', methods=['GET'])
 def status():
     return jsonify({"status": "running"}), 200
 
 if __name__ == "__main__":
-    # Run on port 5000 by default
-    print("Voice Service starting on http://localhost:5000")
+    print("Voice & Logic Service starting on http://localhost:5000")
     app.run(port=5000, debug=False)

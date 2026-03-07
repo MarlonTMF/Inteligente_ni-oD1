@@ -14,9 +14,9 @@ export interface HexCell {
 }
 
 export const TERRAIN_CONFIG = {
-  [TerrainType.MEADOW]: { cost: 1, color: "#A7F3D0", label: "Pradera" }, // Light green
-  [TerrainType.FOREST]: { cost: 3, color: "#065F46", label: "Bosque de la Confusión" }, // Dark green
-  [TerrainType.WALL]: { cost: Infinity, color: "#4B5563", label: "Muro de Miedo" }, // Gray
+  [TerrainType.MEADOW]: { cost: 1, color: "#A7F3D0", label: "Pradera" },
+  [TerrainType.FOREST]: { cost: 3, color: "#065F46", label: "Bosque de la Confusión" },
+  [TerrainType.WALL]: { cost: Infinity, color: "#4B5563", label: "Muro de Miedo" },
 };
 
 export interface PredefinedResponse {
@@ -26,9 +26,17 @@ export interface PredefinedResponse {
   targetHex: { q: number; r: number };
 }
 
-export const PREDEFINED_RESPONSES: PredefinedResponse[] = [
-  { id: "1", text: "Me siento solo", emotion: "tristeza", targetHex: { q: 3, r: -3 } },
-  { id: "2", text: "¡Estoy muy emocionado!", emotion: "alegria", targetHex: { q: 0, r: 3 } },
-  { id: "3", text: "Tengo un poco de miedo", emotion: "miedo", targetHex: { q: -3, r: 3 } },
-  { id: "4", text: "Estoy tranquilo", emotion: "calma", targetHex: { q: 3, r: 0 } },
-];
+export interface Guardian {
+  id: string;
+  name: string;
+  role: string;
+  emoji: string;
+  color: string;
+  lore: string;
+  technique: string;
+  instruction: string;
+  strategy: string;
+  advice: string;
+}
+
+export type SearchType = 'BFS' | 'DFS' | 'UNIFORM' | 'ASTAR';
